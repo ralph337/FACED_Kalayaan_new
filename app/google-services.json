@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "222015429216",
+    "project_id": "facedform",
+    "storage_bucket": "facedform.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:222015429216:android:c18a309a916859dcea4105",
+        "android_client_info": {
+          "package_name": "com.mswdo.kalayaan.faced"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAFsggkPhROGCo9GuyMVRkxYhUjETBBVvE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
