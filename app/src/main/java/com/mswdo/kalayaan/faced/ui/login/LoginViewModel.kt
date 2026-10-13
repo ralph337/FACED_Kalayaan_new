@@ -86,8 +86,36 @@ class LoginViewModel(private val userRepository: UserRepository) : ViewModel() {
                         fullName = user.displayName ?: "Staff Member",
                         avatarInitials = (user.email?.take(2) ?: "ST").uppercase()
                     )
-                    pendingUserEntity = entity
+                    var currentEntity = entity
+                    val userEmail = user.email ?: ""
                     
+                    if (userEmail.isNotBlank()) {
+                        try {
+                            val firebaseDb = FirebaseDatabase.getInstance("https://facedform-default-rtdb.asia-southeast1.firebasedatabase.app/").reference
+                            val snapshot = firebaseDb.child("users").child(userEmail.replace(".", "_")).get().await()
+                            if (snapshot.exists()) {
+                                val map = snapshot.value as? Map<*, *>
+                                val remoteIsActive = (map?.get("active") as? Boolean) ?: (map?.get("isActive") as? Boolean) ?: false
+                                if (remoteIsActive && !currentEntity.isActive) {
+                                    val local = userRepository.findUserByUsername(userEmail)
+                                    if (local != null) {
+                                        userRepository.setActive(local.id, true)
+                                        currentEntity = currentEntity.copy(isActive = true)
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.e("LoginViewModel", "Failed to check live approval from Firebase", e)
+                        }
+                    }
+
+                    pendingUserEntity = currentEntity
+                    
+                    if (currentEntity.role != UserRole.ADMIN && !currentEntity.isActive) {
+                        _state.value = _state.value.copy(isLoading = false, error = "Your account is pending admin approval. Please wait for an administrator to activate your account.")
+                        return@launch
+                    }
+
                     if (!user.isEmailVerified) {
                         // STRICT BLOCK: Email must be verified via Firebase link
                         try { user.sendEmailVerification().await() } catch (_: Exception) {}
@@ -102,7 +130,12 @@ class LoginViewModel(private val userRepository: UserRepository) : ViewModel() {
                     }
                 }
             } catch (e: Exception) {
-                _state.value = _state.value.copy(isLoading = false, error = e.localizedMessage ?: "Invalid credentials.")
+                val msg = when {
+                    e.message?.contains("auth credential", ignoreCase = true) == true -> "Incorrect email or password, or Google Sign-In is not enabled in Firebase Console."
+                    e.message?.contains("user-not-found", ignoreCase = true) == true -> "No account found with this email address. Please register first."
+                    else -> e.localizedMessage ?: "Invalid login credentials."
+                }
+                _state.value = _state.value.copy(isLoading = false, error = msg)
             }
         }
     }
@@ -125,6 +158,14 @@ class LoginViewModel(private val userRepository: UserRepository) : ViewModel() {
         viewModelScope.launch {
             _registerState.value = _registerState.value.copy(isLoading = true, error = null)
             try {
+                // Delete user from Firebase Auth to simulate a reset for testing
+                try {
+                    val signInResult = auth.signInWithEmailAndPassword(s.email, s.password).await()
+                    signInResult.user?.delete()?.await()
+                } catch (_: Exception) {
+                    // Ignore if account doesn't exist
+                }
+
                 val result = auth.createUserWithEmailAndPassword(s.email, s.password).await()
                 result.user?.let { u ->
                     val profileUpdates = UserProfileChangeRequest.Builder()
@@ -222,15 +263,37 @@ class LoginViewModel(private val userRepository: UserRepository) : ViewModel() {
                 
                 val firebaseUser = authResult.user
                 if (firebaseUser != null) {
-                    val userEntity = UserEntity(
-                        id = firebaseUser.uid.hashCode().toLong(), // Simple fallback ID generator for now
+                    var userEntity = userRepository.getOrCreateUser(
                         username = firebaseUser.email ?: "unknown",
-                        passwordHash = "", // No password needed for Google Auth
                         fullName = firebaseUser.displayName ?: "Staff Member",
-                        title = "Disaster Response Staff",
-                        role = UserRole.STAFF, // Assume STAFF role by default, can be modified via DB later
                         avatarInitials = (firebaseUser.displayName?.take(2) ?: "ST").uppercase()
                     )
+                    
+                    val userEmail = firebaseUser.email ?: ""
+                    if (userEmail.isNotBlank()) {
+                        try {
+                            val firebaseDb = FirebaseDatabase.getInstance("https://facedform-default-rtdb.asia-southeast1.firebasedatabase.app/").reference
+                            val snapshot = firebaseDb.child("users").child(userEmail.replace(".", "_")).get().await()
+                            if (snapshot.exists()) {
+                                val map = snapshot.value as? Map<*, *>
+                                val remoteIsActive = (map?.get("active") as? Boolean) ?: (map?.get("isActive") as? Boolean) ?: false
+                                if (remoteIsActive && !userEntity.isActive) {
+                                    val local = userRepository.findUserByUsername(userEmail)
+                                    if (local != null) {
+                                        userRepository.setActive(local.id, true)
+                                        userEntity = userEntity.copy(isActive = true)
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.e("LoginViewModel", "Failed to check live approval from Firebase", e)
+                        }
+                    }
+                    
+                    if (userEntity.role != UserRole.ADMIN && !userEntity.isActive) {
+                        _state.value = _state.value.copy(isLoading = false, error = "Your account is pending admin approval. Please wait for an administrator to activate your account.")
+                        return@launch
+                    }
                     
                     SessionManager.login(userEntity)
                     _state.value = _state.value.copy(isLoading = false, loggedInUser = userEntity)
@@ -238,7 +301,11 @@ class LoginViewModel(private val userRepository: UserRepository) : ViewModel() {
                     _state.value = _state.value.copy(isLoading = false, error = "Firebase authentication failed.")
                 }
             } catch (e: Exception) {
-                _state.value = _state.value.copy(isLoading = false, error = e.localizedMessage ?: "Sign-in failed.")
+                val msg = when {
+                    e.message?.contains("auth credential", ignoreCase = true) == true -> "Google Sign-In is not enabled in Firebase Console yet. Please add SHA-1 fingerprint."
+                    else -> e.localizedMessage ?: "Google Sign-In failed."
+                }
+                _state.value = _state.value.copy(isLoading = false, error = msg)
             }
         }
     }

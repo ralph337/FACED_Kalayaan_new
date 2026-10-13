@@ -20,6 +20,7 @@ import com.mswdo.kalayaan.faced.ui.theme.*
 @Composable
 fun EvacCentersScreen(viewModel: EvacViewModel, isAdmin: Boolean) {
     val centers by viewModel.centers.collectAsState()
+    val query by viewModel.query.collectAsState()
     var showDialog by remember { mutableStateOf<EvacCenterEntity?>(null) }
     var showNewDialog by remember { mutableStateOf(false) }
 
@@ -36,6 +37,34 @@ fun EvacCentersScreen(viewModel: EvacViewModel, isAdmin: Boolean) {
                     Spacer(Modifier.width(4.dp))
                     Text("Add")
                 }
+            }
+        }
+        
+        OutlinedTextField(
+            value = query,
+            onValueChange = viewModel::onQueryChange,
+            placeholder = { Text("Search by name or location...") },
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp)
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val selectedBarangay by viewModel.barangayFilter.collectAsState()
+            val barangays = listOf("All", "San Juan", "Longos", "San Antonio")
+
+            barangays.forEach { b ->
+                val isSelected = (b == "All" && selectedBarangay == null) || selectedBarangay == b
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { viewModel.onBarangayFilterChange(if (b == "All") null else b) },
+                    label = { Text(b, style = MaterialTheme.typography.labelSmall) }
+                )
             }
         }
 
@@ -88,12 +117,15 @@ private fun CenterCard(cw: CenterWithOccupancy, isAdmin: Boolean, onEdit: () -> 
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CenterEditDialog(initial: EvacCenterEntity?, onDismiss: () -> Unit, onSave: (EvacCenterEntity) -> Unit) {
     var name by remember { mutableStateOf(initial?.name ?: "") }
-    var location by remember { mutableStateOf(initial?.location ?: "") }
+    var location by remember { mutableStateOf(initial?.location ?: "San Juan") }
     var capacity by remember { mutableStateOf(initial?.capacity?.toString() ?: "") }
     var facilities by remember { mutableStateOf(initial?.facilities ?: "") }
+    var locationMenuOpen by remember { mutableStateOf(false) }
+    val barangays = listOf("San Juan", "Longos", "San Antonio")
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -101,7 +133,26 @@ private fun CenterEditDialog(initial: EvacCenterEntity?, onDismiss: () -> Unit, 
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Center Name") }, singleLine = true)
-                OutlinedTextField(value = location, onValueChange = { location = it }, label = { Text("Location / Barangay") }, singleLine = true)
+                
+                ExposedDropdownMenuBox(expanded = locationMenuOpen, onExpandedChange = { locationMenuOpen = it }) {
+                    OutlinedTextField(
+                        value = location,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Location / Barangay") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = locationMenuOpen) },
+                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(expanded = locationMenuOpen, onDismissRequest = { locationMenuOpen = false }) {
+                        barangays.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = { location = option; locationMenuOpen = false }
+                            )
+                        }
+                    }
+                }
+                
                 OutlinedTextField(value = capacity, onValueChange = { capacity = it }, label = { Text("Maximum Capacity") }, singleLine = true)
                 OutlinedTextField(value = facilities, onValueChange = { facilities = it }, label = { Text("Facilities/Resources") }, singleLine = true)
             }
@@ -109,7 +160,7 @@ private fun CenterEditDialog(initial: EvacCenterEntity?, onDismiss: () -> Unit, 
         confirmButton = {
             TextButton(onClick = {
                 onSave(
-                    (initial ?: EvacCenterEntity(name = "", location = "", capacity = 0)).copy(
+                    (initial ?: EvacCenterEntity(name = "", location = "San Juan", capacity = 0)).copy(
                         name = name.trim(), location = location.trim(),
                         capacity = capacity.toIntOrNull() ?: 0, facilities = facilities.trim()
                     )

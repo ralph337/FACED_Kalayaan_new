@@ -8,34 +8,7 @@ import com.mswdo.kalayaan.faced.data.entity.*
 object SeedData {
 
     suspend fun populate(db: AppDatabase) {
-        if (db.evacCenterDao().count() > 0) return // already seeded
-
-        // 5 Evacuation Centers
-        db.evacCenterDao().insertAll(
-            listOf(
-                EvacCenterEntity(name = "Kalayaan Central Gym", location = "Brgy. San Juan", capacity = 150),
-                EvacCenterEntity(name = "Longos Elementary School", location = "Brgy. Longos", capacity = 100),
-                EvacCenterEntity(name = "San Antonio Multi-Purpose Hall", location = "Brgy. San Antonio", capacity = 80),
-                EvacCenterEntity(name = "San Roque Community Center", location = "Brgy. San Roque", capacity = 120),
-                EvacCenterEntity(name = "Magalolon Evacuation Tent", location = "Brgy. Magalolon", capacity = 50)
-            )
-        )
-
-        // 10 Inventory Items
-        db.inventoryDao().insertAll(
-            listOf(
-                InventoryItemEntity(code = "FFP-DSWD", name = "Family Food Packs (FFP)", category = "Food Rations", unit = "pack", qty = 420, lowStockThreshold = 50),
-                InventoryItemEntity(code = "HYG-STD", name = "Hygiene Kits", category = "Hygiene & Sanitation", unit = "kit", qty = 150, lowStockThreshold = 30),
-                InventoryItemEntity(code = "SLP-BED", name = "Sleeping Kits & Modular Beds", category = "Bedding & Shelter", unit = "set", qty = 85, lowStockThreshold = 20),
-                InventoryItemEntity(code = "WTR-CAN", name = "Jerry Cans (Water)", category = "Water & Supplies", unit = "can", qty = 50, lowStockThreshold = 20),
-                InventoryItemEntity(code = "BTL-WTR", name = "Bottled Water (1L)", category = "Water & Supplies", unit = "bottle", qty = 500, lowStockThreshold = 100),
-                InventoryItemEntity(code = "CANNED-BOX", name = "Canned Goods Assortment", category = "Food Rations", unit = "box", qty = 120, lowStockThreshold = 20),
-                InventoryItemEntity(code = "MED-FAK", name = "First Aid Kits", category = "Medical Supplies", unit = "kit", qty = 60, lowStockThreshold = 10),
-                InventoryItemEntity(code = "SLP-BLK", name = "Blankets", category = "Bedding & Shelter", unit = "piece", qty = 200, lowStockThreshold = 40),
-                InventoryItemEntity(code = "EQP-FLS", name = "Flashlights (+Batteries)", category = "Equipment", unit = "piece", qty = 75, lowStockThreshold = 15),
-                InventoryItemEntity(code = "SHL-TARP", name = "Tarpaulins", category = "Bedding & Shelter", unit = "roll", qty = 30, lowStockThreshold = 5)
-            )
-        )
+        if (db.facedRecordDao().count() > 0) return // already seeded
 
         // 5 FACED Forms
         val records = listOf(

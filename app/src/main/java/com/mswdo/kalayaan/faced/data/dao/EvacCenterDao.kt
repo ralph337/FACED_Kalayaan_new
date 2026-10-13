@@ -12,8 +12,17 @@ interface EvacCenterDao {
     @Query("SELECT * FROM evac_centers WHERE isActive = 1 ORDER BY name ASC")
     fun observeActive(): Flow<List<EvacCenterEntity>>
 
+    @Query("SELECT * FROM evac_centers WHERE isSynced = 0")
+    suspend fun getUnsynced(): List<EvacCenterEntity>
+
+    @Query("UPDATE evac_centers SET isSynced = 1 WHERE isSynced = 0")
+    suspend fun markAllSynced()
+
     @Query("SELECT COUNT(*) FROM evac_centers")
     suspend fun count(): Int
+
+    @Query("SELECT * FROM evac_centers WHERE name = :name LIMIT 1")
+    suspend fun findByName(name: String): EvacCenterEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(center: EvacCenterEntity): Long
@@ -24,6 +33,6 @@ interface EvacCenterDao {
     @Update
     suspend fun update(center: EvacCenterEntity)
 
-    @Delete
-    suspend fun delete(center: EvacCenterEntity)
+    @Query("DELETE FROM evac_centers WHERE id = :id")
+    suspend fun hardDelete(id: Long)
 }

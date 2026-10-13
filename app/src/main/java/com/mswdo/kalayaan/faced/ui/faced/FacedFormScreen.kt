@@ -54,7 +54,13 @@ fun FacedFormScreen(
         },
         bottomBar = {
             Surface(shadowElevation = 8.dp) {
-                Row(Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    Modifier
+                        .navigationBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     if (currentStep == 0) {
                         OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Text("Cancel") }
                     } else {
@@ -85,7 +91,11 @@ fun FacedFormScreen(
         }
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.padding(padding).padding(16.dp).fillMaxSize(),
+            modifier = Modifier
+                .padding(padding)
+                .padding(horizontal = 16.dp)
+                .fillMaxSize()
+                .imePadding(),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item {
@@ -103,8 +113,17 @@ fun FacedFormScreen(
             if (currentStep == 0) {
                 item {
                     FormSectionCard("Filing Details") {
-                        LabeledDropdown("Barangay *", BARANGAYS, state.barangay, enabled = !state.isHeadNameLocked) { viewModel.update { s -> s.copy(barangay = it) } }
-                        LabeledDropdown("Evacuation Center *", centers.map { it.name }, state.evacCenterName) { viewModel.update { s -> s.copy(evacCenterName = it) } }
+                        LabeledDropdown("Barangay *", BARANGAYS, state.barangay, enabled = !state.isHeadNameLocked) { 
+                            viewModel.update { s -> s.copy(barangay = it, evacCenterName = "") } 
+                        }
+                        
+                        val availableCenters = centers.filter { it.location.equals(state.barangay, ignoreCase = true) }
+                        if (availableCenters.isEmpty()) {
+                            Text("No evacuation centers available in ${state.barangay}.", color = Red600, style = MaterialTheme.typography.bodySmall)
+                        } else {
+                            LabeledDropdown("Evacuation Center *", availableCenters.map { it.name }, state.evacCenterName) { viewModel.update { s -> s.copy(evacCenterName = it) } }
+                        }
+                        
                         LabeledDropdown("Disaster / Emergency Event *", DISASTERS, state.disasterEvent) { viewModel.update { s -> s.copy(disasterEvent = it) } }
                         if (state.disasterEvent == "Typhoon / Severe Storm") {
                             LabeledField("Storm Name", state.stormName) { viewModel.update { s -> s.copy(stormName = it) } }

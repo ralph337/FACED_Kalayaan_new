@@ -15,5 +15,6 @@ data class EvacCenterEntity(
     val location: String,
     val capacity: Int,
     val facilities: String = "",
-    val isActive: Boolean = true
+    val isActive: Boolean = true,
+    val isSynced: Boolean = false
 )

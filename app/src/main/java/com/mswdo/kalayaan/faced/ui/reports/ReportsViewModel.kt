@@ -36,8 +36,22 @@ class ReportsViewModel(
     private val database: com.mswdo.kalayaan.faced.data.AppDatabase
 ) : ViewModel() {
 
-    val events: StateFlow<List<EventLogEntity>> =
-        facedRepo.observeAllEvents().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val _eventQuery = MutableStateFlow("")
+    val eventQuery: StateFlow<String> = _eventQuery.asStateFlow()
+
+    val events: StateFlow<List<EventLogEntity>> = combine(
+        facedRepo.observeAllEvents(),
+        _eventQuery
+    ) { allEvents, q ->
+        val facedOnly = allEvents.filter { it.facedSerial.isNotBlank() }
+        if (q.isBlank()) facedOnly else facedOnly.filter {
+            it.headName.contains(q, ignoreCase = true) ||
+            it.facedSerial.contains(q, ignoreCase = true) ||
+            it.description.contains(q, ignoreCase = true)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun onEventQueryChange(q: String) { _eventQuery.value = q }
 
     suspend fun getFullRecords(): List<FacedFullRecord> = facedRepo.getAllFullRecords()
 

@@ -36,7 +36,7 @@ import kotlinx.coroutines.launch
         AssistanceRecordEntity::class,
         EventLogEntity::class
     ],
-    version = 7,
+    version = 11,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

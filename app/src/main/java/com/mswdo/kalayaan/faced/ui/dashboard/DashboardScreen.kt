@@ -13,10 +13,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.mswdo.kalayaan.faced.ui.components.BarangayEvacueeBarChart
+import com.mswdo.kalayaan.faced.ui.components.CenterByBarangayBarChart
 import com.mswdo.kalayaan.faced.ui.components.EmptyState
 import com.mswdo.kalayaan.faced.ui.components.ProgressBarRow
+import com.mswdo.kalayaan.faced.ui.components.ReliefStockBarChart
 import com.mswdo.kalayaan.faced.ui.components.SectionHeader
 import com.mswdo.kalayaan.faced.ui.components.StatCard
+import com.mswdo.kalayaan.faced.ui.components.VulnerabilityDonutChart
 import com.mswdo.kalayaan.faced.ui.theme.*
 
 @Composable
@@ -78,6 +82,33 @@ fun DashboardScreen(viewModel: DashboardViewModel, isAdmin: Boolean = false, onM
                         Text("${state.lowStockItemCount} inventory item(s) are at low stock.", color = Amber700, style = MaterialTheme.typography.bodySmall)
                     }
                 }
+            }
+        }
+
+        if (state.evacueesPerBarangay.isNotEmpty()) {
+            item {
+                BarangayEvacueeBarChart(data = state.evacueesPerBarangay)
+            }
+        }
+
+        listOf("San Juan", "Longos", "San Antonio").forEach { b ->
+            val centerList = state.centersByBarangay[b] ?: emptyList()
+            if (centerList.isNotEmpty()) {
+                item {
+                    CenterByBarangayBarChart(barangayName = b, centers = centerList)
+                }
+            }
+        }
+
+        if (state.inventory.isNotEmpty()) {
+            item {
+                ReliefStockBarChart(inventory = state.inventory)
+            }
+        }
+
+        if (state.vulnerabilityBreakdown.any { it.second > 0 }) {
+            item {
+                VulnerabilityDonutChart(breakdown = state.vulnerabilityBreakdown)
             }
         }
 

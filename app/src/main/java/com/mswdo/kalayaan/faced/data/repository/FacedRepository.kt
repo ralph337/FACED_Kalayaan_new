@@ -108,6 +108,30 @@ class FacedRepository(
         )
     }
 
+    suspend fun returnNonConsumableItems(serial: String, headName: String, returnedItemNames: List<String>) {
+        val history = assistanceDao.observeForRecord(serial).first()
+        var totalItemsReturned = 0
+        
+        returnedItemNames.forEach { itemName ->
+            // Find how many of this item were given to this family
+            val totalQtyGiven = history.filter { it.itemName == itemName }.sumOf { it.qty }
+            if (totalQtyGiven > 0) {
+                val inventoryItem = inventoryDao.observeAll().first().find { it.name == itemName }
+                if (inventoryItem != null) {
+                    inventoryDao.restock(inventoryItem.id, totalQtyGiven)
+                    totalItemsReturned += totalQtyGiven
+                }
+            }
+        }
+        
+        if (totalItemsReturned > 0) {
+            logEvent(
+                serial, headName, EventType.ASSISTANCE_GIVEN,
+                "$totalItemsReturned non-consumable item(s) (${returnedItemNames.joinToString(", ")}) returned to inventory stock."
+            )
+        }
+    }
+
     suspend fun delete(record: FacedRecordEntity) = facedDao.delete(record)
 
     /**

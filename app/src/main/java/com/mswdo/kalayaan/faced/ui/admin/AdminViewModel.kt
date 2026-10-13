@@ -7,8 +7,10 @@ import com.mswdo.kalayaan.faced.data.entity.UserEntity
 import com.mswdo.kalayaan.faced.data.entity.UserRole
 import com.mswdo.kalayaan.faced.data.repository.FacedRepository
 import com.mswdo.kalayaan.faced.data.repository.UserRepository
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -19,8 +21,26 @@ class AdminViewModel(
     val users: StateFlow<List<UserEntity>> =
         repo.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val auditLogs: StateFlow<List<EventLogEntity>> =
-        facedRepo.observeAllEvents().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val _auditQuery = MutableStateFlow("")
+    val auditQuery: StateFlow<String> = _auditQuery
+
+    val auditLogs: StateFlow<List<EventLogEntity>> = combine(
+        facedRepo.observeAllEvents(),
+        _auditQuery
+    ) { logs, query ->
+        if (query.isBlank()) logs
+        else {
+            val q = query.lowercase()
+            logs.filter {
+                it.headName.lowercase().contains(q) ||
+                it.facedSerial.lowercase().contains(q) ||
+                it.description.lowercase().contains(q) ||
+                it.performedByName.lowercase().contains(q)
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun onAuditQueryChange(q: String) { _auditQuery.value = q }
 
     fun createStaff(username: String, password: String, fullName: String, title: String, role: UserRole) {
         viewModelScope.launch {

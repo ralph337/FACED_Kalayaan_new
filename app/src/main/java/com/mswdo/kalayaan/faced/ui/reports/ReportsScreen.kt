@@ -43,8 +43,8 @@ fun ReportsScreen(viewModel: ReportsViewModel) {
 
 @Composable
 private fun FacedEventReportTab(viewModel: ReportsViewModel) {
-    val allEvents by viewModel.events.collectAsState()
-    val events = remember(allEvents) { allEvents.filter { it.facedSerial.isNotBlank() } }
+    val events by viewModel.events.collectAsState()
+    val query by viewModel.eventQuery.collectAsState()
     val context = LocalContext.current
 
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -62,6 +62,16 @@ private fun FacedEventReportTab(viewModel: ReportsViewModel) {
                     Text("Export CSV")
                 }
             }
+        }
+        item {
+            OutlinedTextField(
+                value = query,
+                onValueChange = viewModel::onEventQueryChange,
+                placeholder = { Text("Search logs by name, serial, action...") },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+            )
         }
         if (events.isEmpty()) {
             item { EmptyState(Icons.Filled.History, "No activity recorded yet.") }

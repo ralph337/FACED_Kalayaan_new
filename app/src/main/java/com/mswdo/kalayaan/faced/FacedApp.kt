@@ -29,8 +29,8 @@ class FacedApp : Application() {
         database = AppDatabase.getInstance(this)
 
         userRepository = UserRepository(database.userDao(), database.eventLogDao())
-        evacCenterRepository = EvacCenterRepository(database.evacCenterDao(), database.facedRecordDao())
-        inventoryRepository = InventoryRepository(database.inventoryDao())
+        evacCenterRepository = EvacCenterRepository(database.evacCenterDao(), database.facedRecordDao(), database.eventLogDao())
+        inventoryRepository = InventoryRepository(database.inventoryDao(), database.eventLogDao())
         facedRepository = FacedRepository(
             database.facedRecordDao(),
             database.householdMemberDao(),

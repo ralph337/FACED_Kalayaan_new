@@ -51,6 +51,15 @@ class FacedDetailViewModel(
         }
     }
 
+    fun checkOutAndReturnItems(headName: String, returnedItems: List<String>) {
+        viewModelScope.launch {
+            if (returnedItems.isNotEmpty()) {
+                facedRepo.returnNonConsumableItems(serial, headName, returnedItems)
+            }
+            facedRepo.updateStatus(serial, EvacuationStatus.LEFT_CENTER, null)
+        }
+    }
+
     fun submitAssistance(defaultReceiver: String, onDone: () -> Unit) {
         val f = _assistanceForm.value
         val actualReceiver = f.receivingMember.ifBlank { defaultReceiver }

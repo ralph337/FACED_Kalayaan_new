@@ -118,11 +118,45 @@ fun AppScaffold(
                         }
                     }
                 }
+
+                if (currentUser.role == UserRole.ADMIN) {
+                    val allUsers by app.userRepository.observeAll().collectAsState(initial = emptyList())
+                    val pendingCount = allUsers.count { !it.isActive && it.role != UserRole.ADMIN }
+                    if (pendingCount > 0) {
+                        Surface(
+                            color = Amber100,
+                            onClick = { onNavigate("admin") },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Filled.NotificationsActive, contentDescription = null, tint = Amber700, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        "$pendingCount staff account(s) pending approval!",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = Amber700,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Text("Review >", style = MaterialTheme.typography.labelSmall, color = Amber700, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+
                 Divider(color = Slate200)
             }
         },
         bottomBar = {
-            NavigationBar(containerColor = Color.White) {
+            NavigationBar(
+                containerColor = Color.White,
+                modifier = Modifier.navigationBarsPadding()
+            ) {
                 bottomDestinations.forEach { dest ->
                     NavigationBarItem(
                         selected = currentRoute == dest.route,

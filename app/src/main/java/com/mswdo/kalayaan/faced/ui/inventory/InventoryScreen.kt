@@ -20,6 +20,7 @@ import com.mswdo.kalayaan.faced.ui.theme.*
 fun InventoryScreen(viewModel: InventoryViewModel, isAdmin: Boolean) {
     val items by viewModel.items.collectAsState()
     val log by viewModel.distributionLog.collectAsState()
+    val query by viewModel.query.collectAsState()
     var editing by remember { mutableStateOf<InventoryItemEntity?>(null) }
     var showNew by remember { mutableStateOf(false) }
     var tab by remember { mutableStateOf(0) }
@@ -39,6 +40,15 @@ fun InventoryScreen(viewModel: InventoryViewModel, isAdmin: Boolean) {
                 }
             }
         }
+        
+        OutlinedTextField(
+            value = query,
+            onValueChange = viewModel::onQueryChange,
+            placeholder = { Text("Search by name, code, or category...") },
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 12.dp)
+        )
 
         TabRow(selectedTabIndex = tab) {
             Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Stock Balances") })
@@ -109,14 +119,21 @@ private fun InventoryCard(item: InventoryItemEntity, isAdmin: Boolean, onEdit: (
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun InventoryEditDialog(initial: InventoryItemEntity?, onDismiss: () -> Unit, onSave: (InventoryItemEntity) -> Unit) {
     var code by remember { mutableStateOf(initial?.code ?: "") }
     var name by remember { mutableStateOf(initial?.name ?: "") }
-    var category by remember { mutableStateOf(initial?.category ?: "") }
+    var category by remember { mutableStateOf(initial?.category ?: "Food Rations (Consumable)") }
     var unit by remember { mutableStateOf(initial?.unit ?: "") }
     var qty by remember { mutableStateOf(initial?.qty?.toString() ?: "") }
     var threshold by remember { mutableStateOf(initial?.lowStockThreshold?.toString() ?: "20") }
+    var categoryMenuOpen by remember { mutableStateOf(false) }
+    val categories = listOf(
+        "Food Rations (Consumable)", "Hygiene & Sanitation (Consumable)", "Water & Supplies (Consumable)",
+        "Water & Supplies (Non-consumable)", "Medical Supplies (Consumable)", "Bedding & Shelter (Non-consumable)",
+        "Equipment (Non-consumable)", "Others (Consumable)", "Others (Non-consumable)"
+    )
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -125,7 +142,26 @@ private fun InventoryEditDialog(initial: InventoryItemEntity?, onDismiss: () -> 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = code, onValueChange = { code = it }, label = { Text("Item Code") }, singleLine = true)
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Item Description") }, singleLine = true)
-                OutlinedTextField(value = category, onValueChange = { category = it }, label = { Text("Category") }, singleLine = true)
+                
+                ExposedDropdownMenuBox(expanded = categoryMenuOpen, onExpandedChange = { categoryMenuOpen = it }) {
+                    OutlinedTextField(
+                        value = category,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Category") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryMenuOpen) },
+                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(expanded = categoryMenuOpen, onDismissRequest = { categoryMenuOpen = false }) {
+                        categories.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = { category = option; categoryMenuOpen = false }
+                            )
+                        }
+                    }
+                }
+                
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(value = unit, onValueChange = { unit = it }, label = { Text("Unit") }, singleLine = true, modifier = Modifier.weight(1f))
                     OutlinedTextField(value = qty, onValueChange = { qty = it }, label = { Text("Quantity") }, singleLine = true, modifier = Modifier.weight(1f))
@@ -136,7 +172,7 @@ private fun InventoryEditDialog(initial: InventoryItemEntity?, onDismiss: () -> 
         confirmButton = {
             TextButton(onClick = {
                 onSave(
-                    (initial ?: InventoryItemEntity(code = "", name = "", category = "", unit = "", qty = 0)).copy(
+                    (initial ?: InventoryItemEntity(code = "", name = "", category = "Food Rations (Consumable)", unit = "", qty = 0)).copy(
                         code = code.trim(), name = name.trim(), category = category.trim(),
                         unit = unit.trim(), qty = qty.toIntOrNull() ?: 0, lowStockThreshold = threshold.toIntOrNull() ?: 20
                     )

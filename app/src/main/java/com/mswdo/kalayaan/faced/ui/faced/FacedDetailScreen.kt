@@ -36,6 +36,8 @@ fun FacedDetailScreen(
     var showAssistanceForm by remember { mutableStateOf(false) }
     var isExporting by remember { mutableStateOf(false) }
     var showReturnDialog by remember { mutableStateOf(false) }
+    var showReturnItemsDialog by remember { mutableStateOf(false) }
+    var nonConsumableItemsToReturn by remember { mutableStateOf(emptyList<String>()) }
     var selectedReturningMembers by remember { mutableStateOf(setOf<String>()) }
     val context = LocalContext.current
 
@@ -69,7 +71,7 @@ fun FacedDetailScreen(
             return@Scaffold
         }
 
-        Column(Modifier.padding(padding).fillMaxSize()) {
+        Column(Modifier.padding(padding).fillMaxSize().imePadding()) {
             TabRow(selectedTabIndex = tab) {
                 Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Profile") })
                 Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Assistance") })
@@ -89,7 +91,19 @@ fun FacedDetailScreen(
                                     selectedReturningMembers = setOf(record.headName) + full!!.members.map { it.name }
                                     showReturnDialog = true
                                 } else {
-                                    viewModel.toggleStatus(record.status)
+                                    // Check if they have non-consumable items to return
+                                    val nonConsumables = inventory.filter { it.category.contains("Non-consumable", ignoreCase = true) }.map { it.name }
+                                    val borrowedItems = full!!.assistanceHistory
+                                        .map { it.itemName }
+                                        .filter { nonConsumables.contains(it) }
+                                        .distinct()
+                                    
+                                    if (borrowedItems.isNotEmpty()) {
+                                        nonConsumableItemsToReturn = borrowedItems
+                                        showReturnItemsDialog = true
+                                    } else {
+                                        viewModel.toggleStatus(record.status)
+                                    }
                                 }
                             }) {
                                 Text(if (record.status == EvacuationStatus.IN_CENTER) "Mark as Left Center" else "Mark as Returned to Center")
@@ -223,6 +237,44 @@ fun FacedDetailScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { showReturnDialog = false }) { Text("Cancel") }
+                }
+            )
+        }
+
+        if (showReturnItemsDialog) {
+            AlertDialog(
+                onDismissRequest = { showReturnItemsDialog = false },
+                icon = { Icon(Icons.Filled.Inventory, contentDescription = null, tint = Blue600) },
+                title = { Text("Return Borrowed Items?") },
+                text = {
+                    Column {
+                        Text("This family received non-consumable items while at the center:", style = MaterialTheme.typography.bodySmall, color = Slate500)
+                        Spacer(Modifier.height(8.dp))
+                        nonConsumableItemsToReturn.forEach { item ->
+                            Text("• $item", style = MaterialTheme.typography.labelMedium, color = Slate800)
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        Text("Are they returning these items to the center's inventory stock, or keeping them?", style = MaterialTheme.typography.bodyMedium, color = Slate800)
+                    }
+                },
+                confirmButton = {
+                    Column(horizontalAlignment = Alignment.End) {
+                        TextButton(onClick = {
+                            viewModel.checkOutAndReturnItems(record.headName, nonConsumableItemsToReturn)
+                            showReturnItemsDialog = false
+                        }) {
+                            Text("Yes, Return Items to Stock")
+                        }
+                        TextButton(onClick = {
+                            viewModel.toggleStatus(record.status)
+                            showReturnItemsDialog = false
+                        }) {
+                            Text("No, Family Kept Them")
+                        }
+                        TextButton(onClick = { showReturnItemsDialog = false }) {
+                            Text("Cancel", color = Slate500)
+                        }
+                    }
                 }
             )
         }

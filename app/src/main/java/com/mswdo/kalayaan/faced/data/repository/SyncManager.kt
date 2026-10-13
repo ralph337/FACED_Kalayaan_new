@@ -128,17 +128,25 @@ class SyncManager(
                     try {
                         val map = child.value as? Map<*, *> ?: return@forEach
                         val username = map["username"] as? String ?: return@forEach
-                        if (userDao.findByUsername(username) == null) {
+                        val role = UserRole.valueOf(map["role"] as? String ?: "STAFF")
+                        val isAdmin = role == UserRole.ADMIN || username.lowercase().trim() == "ralphlax337@gmail.com"
+                        val activeState = if (isAdmin) true else ((map["active"] as? Boolean) ?: (map["isActive"] as? Boolean) ?: false)
+
+                        val existing = userDao.findByUsername(username)
+                        if (existing == null) {
                             val user = UserEntity(
+                                id = (map["id"] as? Long) ?: 0L,
                                 username = username,
                                 passwordHash = map["passwordHash"] as? String ?: "",
                                 fullName = map["fullName"] as? String ?: "",
                                 title = map["title"] as? String ?: "",
-                                role = UserRole.valueOf(map["role"] as? String ?: "STAFF"),
-                                isActive = map["isActive"] as? Boolean ?: true,
+                                role = if (isAdmin) UserRole.ADMIN else role,
+                                isActive = activeState,
                                 avatarInitials = map["avatarInitials"] as? String ?: "ST"
                             )
                             newUsers.add(user)
+                        } else if (existing.isActive != activeState) {
+                            userDao.setActive(existing.id, activeState)
                         }
                     } catch (e: Exception) {
                         Log.e("SyncManager", "Failed to parse remote user", e)
@@ -155,14 +163,28 @@ class SyncManager(
                 val newCenters = mutableListOf<EvacCenterEntity>()
                 centerSnapshot.children.forEach { child ->
                     try {
+                        // Clean up legacy non-numeric string keys from earlier builds
+                        if (child.key?.toLongOrNull() == null) {
+                            child.ref.removeValue()
+                            return@forEach
+                        }
                         val map = child.value as? Map<*, *> ?: return@forEach
+                        val isActive = map["isActive"] as? Boolean ?: true
+                        val id = (map["id"] as? Long) ?: 0L
+
+                        if (!isActive) {
+                            if (id > 0) evacCenterDao.hardDelete(id)
+                            return@forEach
+                        }
+
                         val name = map["name"] as? String ?: return@forEach
                         val center = EvacCenterEntity(
-                            id = (map["id"] as? Long) ?: 0L,
+                            id = id,
                             name = name,
                             location = map["location"] as? String ?: "",
                             capacity = (map["capacity"] as? Long)?.toInt() ?: 100,
-                            isActive = map["isActive"] as? Boolean ?: true
+                            isActive = true,
+                            isSynced = true
                         )
                         newCenters.add(center)
                     } catch (e: Exception) {
@@ -180,16 +202,31 @@ class SyncManager(
                 val newItems = mutableListOf<InventoryItemEntity>()
                 invSnapshot.children.forEach { child ->
                     try {
+                        // Clean up legacy non-numeric string keys from earlier builds
+                        if (child.key?.toLongOrNull() == null) {
+                            child.ref.removeValue()
+                            return@forEach
+                        }
                         val map = child.value as? Map<*, *> ?: return@forEach
+                        val isActive = map["isActive"] as? Boolean ?: true
+                        val id = (map["id"] as? Long) ?: 0L
+
+                        if (!isActive) {
+                            if (id > 0) inventoryDao.hardDelete(id)
+                            return@forEach
+                        }
+
                         val code = map["code"] as? String ?: return@forEach
                         val item = InventoryItemEntity(
-                            id = (map["id"] as? Long) ?: 0L,
+                            id = id,
                             code = code,
                             name = map["name"] as? String ?: "",
                             category = map["category"] as? String ?: "",
                             unit = map["unit"] as? String ?: "",
                             qty = (map["qty"] as? Long)?.toInt() ?: 0,
-                            lowStockThreshold = (map["lowStockThreshold"] as? Long)?.toInt() ?: 10
+                            lowStockThreshold = (map["lowStockThreshold"] as? Long)?.toInt() ?: 10,
+                            isActive = true,
+                            isSynced = true
                         )
                         newItems.add(item)
                     } catch (e: Exception) {
@@ -198,6 +235,35 @@ class SyncManager(
                 }
                 if (newItems.isNotEmpty()) {
                     inventoryDao.insertAll(newItems)
+                }
+            }
+
+            // 5. Fetch Event Logs for Admin Auditing
+            val eventSnapshot = firebaseDb.child("event_log").get().await()
+            if (eventSnapshot.exists()) {
+                val newEvents = mutableListOf<EventLogEntity>()
+                eventSnapshot.children.forEach { child ->
+                    try {
+                        val map = child.value as? Map<*, *> ?: return@forEach
+                        val timestamp = map["timestamp"] as? Long ?: return@forEach
+                        val entity = EventLogEntity(
+                            id = (map["id"] as? Long) ?: 0L,
+                            facedSerial = map["facedSerial"] as? String ?: "",
+                            headName = map["headName"] as? String ?: "",
+                            eventType = EventType.valueOf(map["eventType"] as? String ?: "FORM_FILED"),
+                            description = map["description"] as? String ?: "",
+                            timestamp = timestamp,
+                            performedByUserId = map["performedByUserId"] as? Long ?: 0L,
+                            performedByName = map["performedByName"] as? String ?: "",
+                            isSynced = true
+                        )
+                        newEvents.add(entity)
+                    } catch (e: Exception) {
+                        Log.e("SyncManager", "Failed to parse remote event log", e)
+                    }
+                }
+                if (newEvents.isNotEmpty()) {
+                    eventLogDao.insertAll(newEvents)
                 }
             }
         } catch (e: Exception) {
@@ -210,7 +276,11 @@ class SyncManager(
         fetchRemoteData() // Automatically download any new records from Firebase Realtime DB first!
         
         val unsynced = facedDao.getUnsynced()
-        if (unsynced.isEmpty()) return 0
+        val unsyncedEvents2 = eventLogDao.getUnsynced()
+        val unsyncedCenters = evacCenterDao.getUnsynced()
+        val unsyncedItems = inventoryDao.getUnsynced()
+        
+        if (unsynced.isEmpty() && unsyncedEvents2.isEmpty() && unsyncedCenters.isEmpty() && unsyncedItems.isEmpty()) return 0
 
         _isSyncing.value = true
         try {
@@ -255,26 +325,41 @@ class SyncManager(
                 updates["faced_records/${record.serial}"] = recordMap
             }
             
-            if (updates.isNotEmpty()) {
+            val unsyncedEvents2 = eventLogDao.getUnsynced()
+            
+            if (updates.isNotEmpty() || unsyncedEvents2.isNotEmpty() || unsyncedCenters.isNotEmpty() || unsyncedItems.isNotEmpty()) {
                 // Also push all local users, evac centers, and inventory items so they sync across devices
                 val allUsers = userDao.observeAll().first()
                 allUsers.forEach { u ->
                     updates["users/${u.username.replace(".", "_")}"] = u
                 }
 
-                val allCenters = evacCenterDao.observeAll().first()
-                allCenters.forEach { c ->
-                    updates["evac_centers/${c.name.replace(".", "_")}"] = c
+                unsyncedCenters.forEach { c ->
+                    updates["evac_centers/${c.id}"] = c
                 }
 
-                val allItems = inventoryDao.observeAll().first()
-                allItems.forEach { i ->
+                unsyncedItems.forEach { i ->
                     updates["inventory_items/${i.id}"] = i
+                }
+
+                // Push Audit Event Logs that haven't been synced yet
+                unsyncedEvents2.forEach { ev ->
+                    updates["event_log/${ev.timestamp}_${ev.performedByUserId}"] = ev.copy(isSynced = true)
                 }
 
                 // Add a 10-second timeout so it doesn't hang forever if DB is unreachable or rules deny access
                 withTimeout(10000) {
                     firebaseDb.updateChildren(updates).await()
+                }
+                
+                if (unsyncedEvents2.isNotEmpty()) {
+                    eventLogDao.markAllSynced()
+                }
+                if (unsyncedCenters.isNotEmpty()) {
+                    evacCenterDao.markAllSynced()
+                }
+                if (unsyncedItems.isNotEmpty()) {
+                    inventoryDao.markAllSynced()
                 }
             }
 
@@ -287,6 +372,37 @@ class SyncManager(
             Log.e("SyncManager", "Firebase sync failed", e)
             _isSyncing.value = false
             return 0
+        }
+    }
+
+    suspend fun deleteEvacCenterRemote(center: EvacCenterEntity) {
+        if (!SessionManager.isOnline.value) return
+        try {
+            if (center.id > 0) {
+                firebaseDb.child("evac_centers").child(center.id.toString()).removeValue().await()
+            }
+            if (center.name.isNotBlank()) {
+                firebaseDb.child("evac_centers").child(center.name.replace(".", "_")).removeValue().await()
+            }
+        } catch (e: Exception) {
+            Log.e("SyncManager", "Failed to remove remote evac center", e)
+        }
+    }
+
+    suspend fun deleteInventoryItemRemote(item: InventoryItemEntity) {
+        if (!SessionManager.isOnline.value) return
+        try {
+            if (item.id > 0) {
+                firebaseDb.child("inventory_items").child(item.id.toString()).removeValue().await()
+            }
+            if (item.code.isNotBlank()) {
+                firebaseDb.child("inventory_items").child(item.code.replace(".", "_")).removeValue().await()
+            }
+            if (item.name.isNotBlank()) {
+                firebaseDb.child("inventory_items").child(item.name.replace(".", "_")).removeValue().await()
+            }
+        } catch (e: Exception) {
+            Log.e("SyncManager", "Failed to remove remote inventory item", e)
         }
     }
 

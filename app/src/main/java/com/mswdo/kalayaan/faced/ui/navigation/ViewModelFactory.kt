@@ -38,9 +38,9 @@ class AppViewModelFactory(
             modelClass.isAssignableFrom(FacedDetailViewModel::class.java) ->
                 FacedDetailViewModel(facedSerial, app.facedRepository, app.inventoryRepository) as T
             modelClass.isAssignableFrom(EvacViewModel::class.java) ->
-                EvacViewModel(app.evacCenterRepository) as T
+                EvacViewModel(app.evacCenterRepository, app.syncManager) as T
             modelClass.isAssignableFrom(InventoryViewModel::class.java) ->
-                InventoryViewModel(app.inventoryRepository, app.facedRepository) as T
+                InventoryViewModel(app.inventoryRepository, app.facedRepository, app.syncManager) as T
             modelClass.isAssignableFrom(ReportsViewModel::class.java) ->
                 ReportsViewModel(app.facedRepository, app.evacCenterRepository, app.inventoryRepository, app.database) as T
             modelClass.isAssignableFrom(AdminViewModel::class.java) ->

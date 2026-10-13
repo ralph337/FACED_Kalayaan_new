@@ -12,8 +12,10 @@ data class InventoryItemEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val code: String,
     val name: String,
-    val category: String,
+    val category: String, // E.g., Consumables, Non-consumables
     val unit: String,
     val qty: Int,
-    val lowStockThreshold: Int = 20
+    val lowStockThreshold: Int = 20,
+    val isActive: Boolean = true,
+    val isSynced: Boolean = false
 )
